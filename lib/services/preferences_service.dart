@@ -33,10 +33,16 @@ class PreferencesService {
     await prefs.setString(_educationLevelKey, level);
   }
 
+  static const String defaultSupabaseUrl =
+      'https://yrkwrrsgectccvmitmfb.supabase.co';
+  static const String defaultSupabaseAnonKey =
+      'sb_publishable_ue9A-nxeVzDEwsebd2XVuA_nsgj_7gQ';
+
   // Supabase Configuration
   static Future<String> getSupabaseUrl() async {
     final prefs = await _prefs;
-    return prefs.getString(_supabaseUrlKey) ?? '';
+    final url = prefs.getString(_supabaseUrlKey);
+    return (url != null && url.isNotEmpty) ? url : defaultSupabaseUrl;
   }
 
   static Future<void> setSupabaseUrl(String url) async {
@@ -46,7 +52,8 @@ class PreferencesService {
 
   static Future<String> getSupabaseAnonKey() async {
     final prefs = await _prefs;
-    return prefs.getString(_supabaseAnonKeyKey) ?? '';
+    final key = prefs.getString(_supabaseAnonKeyKey);
+    return (key != null && key.isNotEmpty) ? key : defaultSupabaseAnonKey;
   }
 
   static Future<void> setSupabaseAnonKey(String key) async {
