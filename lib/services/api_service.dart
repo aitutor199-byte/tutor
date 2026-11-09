@@ -109,9 +109,71 @@ class ApiService {
         );
       }
       throw ApiException(
-        'Could not connect to the AI tutor. Please check your internet connection.',
+        "Could not connect to the Supabase Edge Function 'gemini-chat'. Please ensure the function is created and deployed in your Supabase project (yrkwrrsgectccvmitmfb).",
         code: 'NETWORK_ERROR',
       );
+    }
+  }
+
+  /// Tests the connection to the Supabase Edge Function.
+  static Future<Map<String, dynamic>> testConnection() async {
+    if (!isConfigured) {
+      return {
+        'success': false,
+        'message': 'Supabase URL and Anon Key are not configured.',
+      };
+    }
+
+    final url = Uri.parse('$_supabaseUrl/functions/v1/$_edgeFunctionName');
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_supabaseAnonKey',
+              'apikey': _supabaseAnonKey,
+            },
+            body: jsonEncode({'message': 'ping'}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Connected successfully! AI Tutor is ready.',
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message':
+              "Edge Function 'gemini-chat' not found (404). Please create and deploy it in your Supabase Dashboard.",
+        };
+      } else if (response.statusCode == 500) {
+        final body = response.body;
+        if (body.contains('GEMINI_API_KEY')) {
+          return {
+            'success': false,
+            'message':
+                "Edge Function is reachable, but GEMINI_API_KEY secret is not set in Supabase.",
+          };
+        }
+        return {
+          'success': false,
+          'message': 'Server error (500): $body',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Server responded with status code ${response.statusCode}.',
+        };
+      }
+    } catch (_) {
+      return {
+        'success': false,
+        'message':
+            "Could not reach Edge Function 'gemini-chat'. Please deploy it in Supabase under Edge Functions.",
+      };
     }
   }
 

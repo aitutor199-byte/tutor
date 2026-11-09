@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../models/education_level.dart';
 import '../services/preferences_service.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _keyController = TextEditingController();
   bool _showSaved = false;
   bool _obscureKey = true;
+  bool _isTesting = false;
 
   @override
   void initState() {
@@ -453,6 +455,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: Text(
                   _showSaved ? provider.tr('saved') : provider.tr('save'),
                 ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isTesting
+                    ? null
+                    : () async {
+                        setState(() => _isTesting = true);
+                        final result = await ApiService.testConnection();
+                        if (mounted) {
+                          setState(() => _isTesting = false);
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Row(
+                                children: [
+                                  Icon(
+                                    result['success'] == true
+                                        ? Icons.check_circle_rounded
+                                        : Icons.error_outline_rounded,
+                                    color: result['success'] == true
+                                        ? AppTheme.successColor
+                                        : AppTheme.errorColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    result['success'] == true
+                                        ? 'Connection Success'
+                                        : 'Connection Check',
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                ],
+                              ),
+                              content: Text(result['message'] as String),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                icon: _isTesting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.wifi_tethering_rounded),
+                label: Text(
+                    _isTesting ? 'Testing...' : 'Test Backend Connection'),
               ),
             ),
             const SizedBox(height: 16),
