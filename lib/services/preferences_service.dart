@@ -6,6 +6,7 @@ class PreferencesService {
   static const String _educationLevelKey = 'education_level';
   static const String _supabaseUrlKey = 'supabase_url';
   static const String _supabaseAnonKeyKey = 'supabase_anon_key';
+  static const String _geminiApiKeyKey = 'gemini_api_key';
   static const String _onboardingCompleteKey = 'onboarding_complete';
 
   static Future<SharedPreferences> get _prefs =>
@@ -37,6 +38,19 @@ class PreferencesService {
       'https://yrkwrrsgectccvmitmfb.supabase.co';
   static const String defaultSupabaseAnonKey =
       'sb_publishable_ue9A-nxeVzDEwsebd2XVuA_nsgj_7gQ';
+  static const String defaultGeminiApiKey = '';
+
+  // Gemini API Key
+  static Future<String> getGeminiApiKey() async {
+    final prefs = await _prefs;
+    final key = prefs.getString(_geminiApiKeyKey);
+    return (key != null && key.isNotEmpty) ? key : defaultGeminiApiKey;
+  }
+
+  static Future<void> setGeminiApiKey(String key) async {
+    final prefs = await _prefs;
+    await prefs.setString(_geminiApiKeyKey, key);
+  }
 
   // Supabase Configuration
   static Future<String> getSupabaseUrl() async {

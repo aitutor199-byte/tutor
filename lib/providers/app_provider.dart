@@ -48,12 +48,17 @@ class AppProvider extends ChangeNotifier {
     
     final supabaseUrl = await PreferencesService.getSupabaseUrl();
     final supabaseAnonKey = await PreferencesService.getSupabaseAnonKey();
+    final geminiKey = await PreferencesService.getGeminiApiKey();
     
     if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty) {
       ApiService.configure(
         supabaseUrl: supabaseUrl,
         supabaseAnonKey: supabaseAnonKey,
+        geminiApiKey: geminiKey,
       );
+      _isBackendConfigured = true;
+    } else if (geminiKey.isNotEmpty) {
+      ApiService.setGeminiApiKey(geminiKey);
       _isBackendConfigured = true;
     }
 
@@ -168,10 +173,19 @@ class AppProvider extends ChangeNotifier {
   Map<String, bool> get ttsLanguageSupport => _ttsService.languageSupport;
 
   // Backend configuration
-  Future<void> configureBackend(String url, String anonKey) async {
+  Future<void> configureBackend(String url, String anonKey,
+      [String? geminiApiKey]) async {
     await PreferencesService.setSupabaseUrl(url);
     await PreferencesService.setSupabaseAnonKey(anonKey);
-    ApiService.configure(supabaseUrl: url, supabaseAnonKey: anonKey);
+    if (geminiApiKey != null) {
+      await PreferencesService.setGeminiApiKey(geminiApiKey);
+    }
+    final key = geminiApiKey ?? await PreferencesService.getGeminiApiKey();
+    ApiService.configure(
+      supabaseUrl: url,
+      supabaseAnonKey: anonKey,
+      geminiApiKey: key,
+    );
     _isBackendConfigured = true;
     notifyListeners();
   }

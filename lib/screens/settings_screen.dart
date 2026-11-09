@@ -16,8 +16,10 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _urlController = TextEditingController();
   final _keyController = TextEditingController();
+  final _geminiKeyController = TextEditingController();
   bool _showSaved = false;
   bool _obscureKey = true;
+  bool _obscureGeminiKey = true;
   bool _isTesting = false;
 
   @override
@@ -29,10 +31,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadConfig() async {
     final url = await PreferencesService.getSupabaseUrl();
     final key = await PreferencesService.getSupabaseAnonKey();
+    final geminiKey = await PreferencesService.getGeminiApiKey();
     if (mounted) {
       setState(() {
         _urlController.text = url;
         _keyController.text = key;
+        _geminiKeyController.text = geminiKey;
       });
     }
   }
@@ -41,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _urlController.dispose();
     _keyController.dispose();
+    _geminiKeyController.dispose();
     super.dispose();
   }
 
@@ -423,6 +428,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Google Gemini API Key
+            const Text(
+              'Google Gemini API Key (Direct / Fallback)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _geminiKeyController,
+              decoration: InputDecoration(
+                hintText: 'AQ.Ab8RN6LYt...',
+                prefixIcon: const Icon(Icons.auto_awesome, size: 20),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureGeminiKey
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    size: 20,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscureGeminiKey = !_obscureGeminiKey),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              obscureText: _obscureGeminiKey,
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+
             // Save button
             SizedBox(
               width: double.infinity,
@@ -430,23 +469,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () async {
                   final url = _urlController.text.trim();
                   final key = _keyController.text.trim();
+                  final geminiKey = _geminiKeyController.text.trim();
 
-                  if (url.isEmpty || key.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                            'Please enter both Supabase URL and Anon Key'),
-                        backgroundColor: AppTheme.errorColor,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-
-                  await provider.configureBackend(url, key);
+                  await provider.configureBackend(url, key, geminiKey);
                   setState(() => _showSaved = true);
 
                   if (mounted) {

@@ -4,23 +4,33 @@ import '../models/message.dart';
 
 class ApiService {
   // These should be configured via environment or settings
-  // Never hardcode actual API keys here
   static String _supabaseUrl = '';
   static String _supabaseAnonKey = '';
+  static String _geminiApiKey = '';
   static const String _edgeFunctionName = 'gemini-chat';
 
   static void configure({
     required String supabaseUrl,
     required String supabaseAnonKey,
+    String? geminiApiKey,
   }) {
     _supabaseUrl = supabaseUrl;
     _supabaseAnonKey = supabaseAnonKey;
+    if (geminiApiKey != null) {
+      _geminiApiKey = geminiApiKey;
+    }
+  }
+
+  static void setGeminiApiKey(String key) {
+    _geminiApiKey = key;
   }
 
   static bool get isConfigured =>
       _supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty;
 
-  /// Sends a chat message to the Gemini API via Supabase Edge Function.
+  static bool get hasGeminiKey => _geminiApiKey.isNotEmpty;
+
+  /// Sends a chat message to the Gemini API (via Supabase Edge Function with direct Gemini fallback).
   /// Returns the AI response text.
   static Future<String> sendMessage({
     required List<Message> conversationHistory,
@@ -29,24 +39,66 @@ class ApiService {
     required String educationLevelId,
     required String subjectId,
   }) async {
-    if (!isConfigured) {
-      throw ApiException(
-        'Backend not configured. Please set your Supabase URL and anon key in Settings.',
-        code: 'NOT_CONFIGURED',
+    // 1. Try Supabase Edge Function if configured
+    if (isConfigured) {
+      try {
+        final reply = await _callSupabaseEdgeFunction(
+          conversationHistory: conversationHistory,
+          currentMessage: currentMessage,
+          languageCode: languageCode,
+          educationLevelId: educationLevelId,
+          subjectId: subjectId,
+        );
+        return reply;
+      } catch (e) {
+        // If Edge Function is not deployed / unreachable and we have Gemini key, fallback to direct
+        if (hasGeminiKey) {
+          return await _callGeminiDirect(
+            conversationHistory: conversationHistory,
+            currentMessage: currentMessage,
+            languageCode: languageCode,
+            educationLevelId: educationLevelId,
+            subjectId: subjectId,
+          );
+        }
+        rethrow;
+      }
+    }
+
+    // 2. If Supabase is not configured, but Gemini key is available
+    if (hasGeminiKey) {
+      return await _callGeminiDirect(
+        conversationHistory: conversationHistory,
+        currentMessage: currentMessage,
+        languageCode: languageCode,
+        educationLevelId: educationLevelId,
+        subjectId: subjectId,
       );
     }
 
+    throw ApiException(
+      'Backend not configured. Please set your Supabase URL or Gemini API key in Settings.',
+      code: 'NOT_CONFIGURED',
+    );
+  }
+
+  static Future<String> _callSupabaseEdgeFunction({
+    required List<Message> conversationHistory,
+    required String currentMessage,
+    required String languageCode,
+    required String educationLevelId,
+    required String subjectId,
+  }) async {
     final url = Uri.parse('$_supabaseUrl/functions/v1/$_edgeFunctionName');
 
-    // Build conversation history for the API
     final historyPayload = conversationHistory.map((msg) {
-          return {
-            'role': msg.role == MessageRole.user ? 'user' : 'model',
-            'parts': [
-              {'text': msg.content}
-            ],
-          };
-        }).toList();
+      return {
+        'role': msg.role == MessageRole.user ? 'user' : 'model',
+        'parts': [
+          {'text': msg.content}
+        ],
+      };
+    }).toList();
 
     final body = jsonEncode({
       'message': currentMessage,
@@ -67,7 +119,7 @@ class ApiService {
             },
             body: body,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 45));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -110,6 +162,134 @@ class ApiService {
       }
       throw ApiException(
         "Could not connect to the Supabase Edge Function 'gemini-chat'. Please ensure the function is created and deployed in your Supabase project (yrkwrrsgectccvmitmfb).",
+        code: 'NETWORK_ERROR',
+      );
+    }
+  }
+
+  static String _buildSystemPrompt(
+      String languageCode, String educationLevelId, String subjectId) {
+    String levelPrompt;
+    switch (educationLevelId) {
+      case 'primary':
+        levelPrompt =
+            'The student is in primary school (Class 1-5, ages 5-10). Use very simple, warm language, short sentences, and everyday examples.';
+        break;
+      case 'middle':
+        levelPrompt =
+            'The student is in middle school (Class 6-8, ages 11-13). Use clear language, step-by-step reasoning, and practical examples.';
+        break;
+      case 'college':
+        levelPrompt =
+            'The student is at college/intermediate level. Use academic language, comprehensive proofs, and advanced theory.';
+        break;
+      case 'university':
+        levelPrompt =
+            'The student is at university level. Provide rigorous academic explanations, cite recognized theories, algorithms, and frameworks.';
+        break;
+      default:
+        levelPrompt =
+            'The student is in high school (Class 9-12, ages 14-18). Use proper academic terms, show step-by-step derivations, and explain why things work.';
+    }
+
+    String langPrompt;
+    switch (languageCode) {
+      case 'ur':
+        langPrompt =
+            'Respond entirely in Urdu (اردو) script with natural educational vocabulary.';
+        break;
+      case 'ps':
+        langPrompt =
+            'Respond entirely in Pashto (پښتو) script with authentic educational vocabulary.';
+        break;
+      default:
+        langPrompt =
+            'Respond in English with clear, engaging educational language.';
+    }
+
+    return '''You are "AI Tutor", a patient, friendly, step-by-step personal teacher.
+Subject focus: $subjectId.
+$levelPrompt
+$langPrompt
+Always teach step-by-step, give clear explanations, illustrate with examples, and encourage the student. Never just give the final answer.''';
+  }
+
+  static Future<String> _callGeminiDirect({
+    required List<Message> conversationHistory,
+    required String currentMessage,
+    required String languageCode,
+    required String educationLevelId,
+    required String subjectId,
+  }) async {
+    const model = 'gemini-3-flash-preview';
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$_geminiApiKey');
+
+    final systemPrompt =
+        _buildSystemPrompt(languageCode, educationLevelId, subjectId);
+
+    final contents = <Map<String, dynamic>>[];
+    final recent = conversationHistory.length > 8
+        ? conversationHistory.sublist(conversationHistory.length - 8)
+        : conversationHistory;
+
+    for (final msg in recent) {
+      contents.add({
+        'role': msg.role == MessageRole.user ? 'user' : 'model',
+        'parts': [
+          {'text': msg.content}
+        ],
+      });
+    }
+
+    contents.add({
+      'role': 'user',
+      'parts': [
+        {'text': currentMessage}
+      ],
+    });
+
+    final body = jsonEncode({
+      'contents': contents,
+      'systemInstruction': {
+        'parts': [
+          {'text': systemPrompt}
+        ]
+      },
+      'generationConfig': {
+        'temperature': 0.7,
+        'maxOutputTokens': 2048,
+      },
+    });
+
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 45));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final candidate = data['candidates']?[0];
+        final text =
+            candidate?['content']?['parts']?[0]?['text'] as String?;
+        if (text != null && text.isNotEmpty) {
+          return text;
+        }
+        return 'I received an empty response. Please try asking again.';
+      } else {
+        final errorData = jsonDecode(response.body);
+        final msg = errorData['error']?['message'] ??
+            'Gemini API error (${response.statusCode})';
+        throw ApiException(msg, code: 'GEMINI_ERROR');
+      }
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        'Could not connect to Gemini API. Please check your internet connection.',
         code: 'NETWORK_ERROR',
       );
     }
