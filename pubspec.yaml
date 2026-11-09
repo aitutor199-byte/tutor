@@ -1,0 +1,36 @@
+name: ai_tutor
+description: AI-powered personal tutor for students from Class 1 to university level.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  provider: ^6.1.1
+  http: ^1.2.0
+  shared_preferences: ^2.2.2
+  speech_to_text: ^6.6.0
+  flutter_tts: ^4.0.2
+  flutter_markdown: ^0.6.18
+  uuid: ^4.2.1
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+
+  # Optional custom fonts for Nastaliq calligraphy can be added here
+  # fonts:
+  #   - family: NotoNastaliqUrdu
+  #     fonts:
+  #       - asset: assets/fonts/NotoNastaliqUrdu-Regular.ttf
+  #       - asset: assets/fonts/NotoNastaliqUrdu-Bold.ttf
+  #         weight: 700
