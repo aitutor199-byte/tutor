@@ -328,20 +328,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : Icons.cloud_off_rounded,
                     size: 20,
                     color: provider.isBackendConfigured
-                        ? AppTheme.successColor
+                        ? AppTheme.primaryBlue
                         : AppTheme.warningColor,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    provider.isBackendConfigured
-                        ? 'Backend Connected'
-                        : provider.tr('demoMode'),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: provider.isBackendConfigured
-                          ? AppTheme.successColor
-                          : AppTheme.warningColor,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          provider.isBackendConfigured
+                              ? 'Credentials Configured'
+                              : provider.tr('demoMode'),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: provider.isBackendConfigured
+                                ? AppTheme.primaryBlue
+                                : AppTheme.warningColor,
+                          ),
+                        ),
+                        if (provider.isBackendConfigured)
+                          const Text(
+                            "Tap 'Test Backend Connection' below to verify 'gemini-chat' function",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
